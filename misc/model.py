@@ -285,7 +285,8 @@ class AttModel(CaptionModel):
         bn_loss = self.critBN(bn_logprob, seq_update[:,1:seq_cnt+1, 1].clone())
         fg_loss = self.critFG(fg_logprob, seq_update[:,1:seq_cnt+1, 2].clone())
 
-        return lm_loss, bn_loss, fg_loss
+        # return lm_loss, bn_loss, fg_loss # the bug in parallel gather in pytorch 0.4
+        return lm_loss.unsqueeze(0), bn_loss.unsqueeze(0), fg_loss.unsqueeze(0)
 
     def _sample(self, img, ppls, num, opt={}):
         sample_max = opt.get('sample_max', 1)

@@ -130,6 +130,8 @@ def parse_opt():
     # Evaluation/Checkpointing
     parser.add_argument('--cider_df', type=str, default='corpus',
                     help='')
+    parser.add_argument('--train_split', type=str, default='train',
+                    help='')
     parser.add_argument('--val_split', type=str, default='test',
                     help='')
     parser.add_argument('--inference_only', type=bool, default=False,

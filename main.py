@@ -71,17 +71,16 @@ def train(epoch, opt):
 
         else:
             # print(input_imgs.size(), input_seqs.size(), gt_seqs.size(), input_num.size(), input_ppls.size(), gt_bboxs.size(), mask_bboxs.size())
-            # lm_loss, bn_loss, fg_loss = model(input_imgs, input_seqs, gt_seqs, input_num, input_ppls, gt_bboxs, mask_bboxs)
             lm_loss, bn_loss, fg_loss = model(input_imgs, input_seqs, gt_seqs, input_num, input_ppls, gt_bboxs, mask_bboxs, 'MLE')
             loss += 0.1 * (lm_loss.sum() + bn_loss.sum() + fg_loss.sum()) / lm_loss.numel()
 
-            lm_loss_temp += lm_loss.sum().data[0] / lm_loss.numel()
-            bn_loss_temp += bn_loss.sum().data[0] / lm_loss.numel()
-            fg_loss_temp += fg_loss.sum().data[0] / lm_loss.numel()
+            lm_loss_temp += lm_loss.sum().item() / lm_loss.numel()
+            bn_loss_temp += bn_loss.sum().item() / lm_loss.numel()
+            fg_loss_temp += fg_loss.sum().item() / lm_loss.numel()
 
         model.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm(model.parameters(), opt.grad_clip)
+        nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)
         # utils.clip_gradient(optimizer, opt.grad_clip)
         optimizer.step()
 
@@ -117,7 +116,7 @@ def train(epoch, opt):
                     add_summary_value(tf_summary_writer, 'cider_score', cider_score.data[0], iteration)
                 tf_summary_writer.flush()
 
-            loss_history[iteration] = loss.data[0]
+            loss_history[iteration] = loss.item()
             lr_history[iteration] = opt.learning_rate
             # ss_prob_history[iteration] = model.ss_prob
 
@@ -215,7 +214,7 @@ if __name__ == '__main__':
     ####################################################################################
     # Data Loader
     ####################################################################################
-    dataset = DataLoader(opt, split='train')
+    dataset = DataLoader(opt, split=opt.train_split)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size,
                                             shuffle=False, num_workers=opt.num_workers)
 
