@@ -61,7 +61,7 @@ def decode_sequence(itow, itod, ltow, itoc, wtod, seq, bn_seq, fg_seq, vocab_siz
                 txt = txt + ' '
             ix = seq[i,j]
             if ix > vocab_size:
-                det_word = itod[fg_seq[i,j]]
+                det_word = itod[fg_seq[i,j].item()]
                 det_class = itoc[wtod[det_word]]
                 if opt.decode_noc and det_class in noc_object:
                     det_word = det_class
@@ -75,7 +75,7 @@ def decode_sequence(itow, itod, ltow, itoc, wtod, seq, bn_seq, fg_seq, vocab_siz
                 if ix == 0:
                     break
                 else:
-                    word = itow[str(ix)]
+                    word = itow[str(ix.item())]
             txt = txt + word
         out.append(txt)
     return out
@@ -228,7 +228,7 @@ class LMCriterion(nn.Module):
             txt_mask = Variable(txt_mask)
         txt_out = - torch.masked_select(txt_select, txt_mask.view(-1,1))
 
-        loss = (torch.sum(txt_out)+torch.sum(vis_out)) / (torch.sum(txt_mask.data) + torch.sum(vis_mask.data))
+        loss = (torch.sum(txt_out)+torch.sum(vis_out)) / (torch.sum(txt_mask.data) + torch.sum(vis_mask.data)).float()
 
         return loss
 
@@ -249,7 +249,7 @@ class BNCriterion(nn.Module):
             select = torch.gather(input.view(-1,2), 1, Variable(new_target))
 
             out = - torch.masked_select(select, bn_mask)
-            loss = torch.sum(out) / torch.sum(bn_mask.data)
+            loss = torch.sum(out) / torch.sum(bn_mask.data).float()
         else:
             loss = Variable(input.data.new(1).zero_()).float()
 
@@ -272,7 +272,7 @@ class FGCriterion(nn.Module):
 
         if torch.sum(attr_mask.data) > 0:
             out = - torch.masked_select(select, attr_mask)
-            loss = torch.sum(out) / torch.sum(attr_mask.data)
+            loss = torch.sum(out) / torch.sum(attr_mask.data).float()
         else:
             loss = Variable(input.data.new(1).zero_()).float()
 

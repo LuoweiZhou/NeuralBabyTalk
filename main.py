@@ -70,6 +70,8 @@ def train(epoch, opt):
             rl_loss_temp += loss.data[0]
 
         else:
+            # print(input_imgs.size(), input_seqs.size(), gt_seqs.size(), input_num.size(), input_ppls.size(), gt_bboxs.size(), mask_bboxs.size())
+            # lm_loss, bn_loss, fg_loss = model(input_imgs, input_seqs, gt_seqs, input_num, input_ppls, gt_bboxs, mask_bboxs)
             lm_loss, bn_loss, fg_loss = model(input_imgs, input_seqs, gt_seqs, input_num, input_ppls, gt_bboxs, mask_bboxs, 'MLE')
             loss += 0.1 * (lm_loss.sum() + bn_loss.sum() + fg_loss.sum()) / lm_loss.numel()
 
@@ -153,13 +155,13 @@ def eval(opt):
         sents = utils.decode_sequence(dataset.itow, dataset.itod, dataset.ltow, dataset.itoc, dataset.wtod, \
                                     seq.data, bn_seq.data, fg_seq.data, opt.vocab_size, opt)
         for k, sent in enumerate(sents):
-            entry = {'image_id': img_id[k], 'caption': sent}
+            entry = {'image_id': img_id[k].item(), 'caption': sent}
             predictions.append(entry)
             if num_show < 20:
                 print('image %s: %s' %(entry['image_id'], entry['caption']))
                 num_show += 1
 
-        if count % 100 == 0:
+        if count % 2 == 0:
             print(count)
         count += 1
 
@@ -167,15 +169,15 @@ def eval(opt):
     lang_stats = None
     if opt.language_eval == 1:
         if opt.decode_noc:
-            lang_stats = utils.noc_eval(predictions, str(1), opt.val_split, opt)
+            lang_stats = utils.noc_eval(predictions, opt.id, opt.val_split, opt)
         else:
-            lang_stats = utils.language_eval(opt.dataset, predictions, str(1), opt.val_split, opt)
+            lang_stats = utils.language_eval(opt.dataset, predictions, opt.id, opt.val_split, opt)
 
 
     print('Saving the predictions')
     if opt.inference_only:
         import json
-        pdb.set_trace()
+        # pdb.set_trace()
 
     # Write validation result into summary
     if tf is not None:
@@ -184,6 +186,7 @@ def eval(opt):
         tf_summary_writer.flush()
     val_result_history[iteration] = {'lang_stats': lang_stats, 'predictions': predictions}
 
+    print(lang_stats)
     return lang_stats
 
 ####################################################################################
@@ -355,6 +358,10 @@ if __name__ == '__main__':
 
         if epoch % opt.val_every_epoch == 0:
             lang_stats = eval(opt)
+
+            if opt.inference_only:
+                break
+
             # Save model if is improving on validation result
             current_score = lang_stats['CIDEr']
 

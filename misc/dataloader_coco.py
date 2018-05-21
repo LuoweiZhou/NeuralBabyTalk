@@ -109,7 +109,7 @@ class DataLoader(data.Dataset):
         print('DataLoader loading proposal file: ', opt.proposal_h5)
         h5_proposal_file = h5py.File(self.opt.proposal_h5, 'r', driver='core')
         self.num_proposals = h5_proposal_file['dets_num'][:]
-        self.label_proposals = h5_proposal_file['dets_labels'][:]
+        # self.label_proposals = h5_proposal_file['dets_labels'][:]
         self.label_proposals = h5_proposal_file['dets_labels'][:]
         self.num_nms = h5_proposal_file['nms_num'][:]
         h5_proposal_file.close()
