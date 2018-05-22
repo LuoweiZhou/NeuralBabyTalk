@@ -158,6 +158,7 @@ def parse_opt():
                     help='which cbs mode to use in the decoding stage. cbs_mode: all|unique|novel')
     parser.add_argument('--det_oracle', type=bool, default=False,
                     help='whether use oracle bounding box.')
+    parser.add_argument('--seed', type=int, default=123)
     args = parser.parse_args()
 
     return args

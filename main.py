@@ -203,6 +203,11 @@ if __name__ == '__main__':
     print(opt)
     cudnn.benchmark = True
 
+    torch.manual_seed(opt.seed)
+    np.random.seed(opt.seed)
+    if opt.cuda:
+        torch.cuda.manual_seed_all(opt.seed)
+
     if opt.dataset == 'flickr30k':
         from misc.dataloader_flickr30k import DataLoader
     else:
