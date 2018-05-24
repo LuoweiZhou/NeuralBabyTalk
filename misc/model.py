@@ -164,7 +164,7 @@ class AttModel(CaptionModel):
 
         state = self.init_hidden(seq_batch_size)
         rnn_output = []
-        roi_labels = []
+        roi_labels = [] # store which proposal match the gt box
         det_output = []
 
         if self.finetune_cnn:

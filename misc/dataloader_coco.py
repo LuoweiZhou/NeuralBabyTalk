@@ -177,7 +177,7 @@ class DataLoader(data.Dataset):
 
         ngram_indicator = {i+1:copy.deepcopy(indicator) for i in range(ngram)}
         # get the 2 gram of the caption.
-        for n in range(ngram,0,-1):
+        for n in range(ngram,0,-1): # larger gram has the priority to match
             for i, s in enumerate(stem_caption):
                 for j in xrange(len(s)-n+1):
                     ng = ' '.join(s[j:j+n])
@@ -185,7 +185,7 @@ class DataLoader(data.Dataset):
                     if ng in self.wtod and indicator[i][j][0] == 0 and self.wtod[ng] in pcats: # make sure that larger gram not overwright with lower gram.
                         bn = (ng != ' '.join(captions[i][j:j+n])) + 1
                         fg = self.dtoi[ng]
-                        ngram_indicator[n][i][j] = (self.wtod[ng], bn, fg)
+                        ngram_indicator[n][i][j] = (self.wtod[ng], bn, fg) # (det index, T/F, fine-grained index)
                         indicator[i][j:j+n] = [(self.wtod[ng], bn, fg)] * n
         return ngram_indicator
 
@@ -262,7 +262,7 @@ class DataLoader(data.Dataset):
             k = 0
             while j < len(caption) and j < self.seq_length:
                 is_det = False
-                for n in range(2, 0, -1):
+                for n in range(2, 0, -1): # the object label at most has two words, so 2-gram
                     if det_indicator[n][i][j][0] != 0:
                         cap_seq[i,k,0] = det_indicator[n][i][j][0] + self.vocab_size
                         cap_seq[i,k,1] = det_indicator[n][i][j][1]
@@ -295,7 +295,7 @@ class DataLoader(data.Dataset):
             for q in range(self.seq_per_img):
                 ixl = random.randint(0,ncap)
                 seq_batch[q,:] = cap_seq[ixl,:,:4]
-                mask_batch[q,:]=box_mask[ixl]
+                mask_batch[q,:] = box_mask[ixl]
         else:
             ixl = random.randint(0, ncap - self.seq_per_img)
             seq_batch = cap_seq[ixl:ixl+self.seq_per_img,:,:4]
