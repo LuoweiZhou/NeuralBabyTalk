@@ -218,7 +218,7 @@ class LMCriterion(nn.Module):
         txt_mask = torch.cat([txt_mask.new(txt_mask.size(0), 1).fill_(1), txt_mask[:, :-1]], 1)
         txt_mask[target.data > self.vocab_size] = 0
 
-        vis_out = - torch.masked_select(vis_input, vis_mask)
+        vis_out = - torch.masked_select(vis_input, vis_mask) # in the original code, some visual word has no matching box
         target.data[target.data > self.vocab_size]=0
         # truncate to the same size
 

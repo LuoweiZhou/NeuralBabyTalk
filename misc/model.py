@@ -260,21 +260,27 @@ class AttModel(CaptionModel):
         det_output = torch.cat([_.unsqueeze(1) for _ in det_output], 1)
         roi_labels = torch.cat([_.unsqueeze(1) for _ in roi_labels], 1)
 
-        det_output = F.log_softmax(det_output, dim=2)
+        det_output = F.softmax(det_output, dim=2)
         decoded = F.log_softmax(self.beta * self.logit(rnn_output), dim=2) # text word prob
-        lambda_v = det_output[:,:,0].contiguous() # the dummy prob for text word
+        lambda_v = torch.log(det_output[:,:,0].contiguous()) # the dummy prob for text word
         prob_det = det_output[:,:,1:].contiguous()
 
         decoded = decoded+lambda_v.view(seq_batch_size, seq_cnt, 1).expand_as(decoded)
         decoded  = decoded.view((seq_cnt)*seq_batch_size, -1)
 
         roi_labels = Variable(roi_labels)
+        all_vis_prob = torch.log(1-prob_det.sum(2))
         prob_det = prob_det * roi_labels # roi_labels store the binary mask that represents if the proposal match the gt proposal (location iou>0.5, class match, confident score>0.5)
 
-        roi_cnt = roi_labels.sum(2)
+        # roi_cnt = roi_labels.sum(2)
         # print(torch.max(roi_cnt)) # multiple-matches happen frequently
-        roi_cnt[roi_cnt==0]=1
-        vis_prob = prob_det.sum(2) / roi_cnt
+        # roi_cnt[roi_cnt==0]=1
+        vis_prob = prob_det.sum(2)
+        vis_prob[vis_prob.data==0] = 1
+        vis_prob = torch.log(vis_prob)
+        vis_prob += (vis_prob.data==0).float()*all_vis_prob # if there is no matched proposal, set the target prob to 0
+
+        # vis_prob = prob_det.sum(2) / roi_cnt
         vis_prob = vis_prob.view(-1,1) # prob over the detection classes
 
         seq_update = Variable(seq_update)
