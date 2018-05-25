@@ -109,7 +109,7 @@ class adaPnt(nn.Module):
         # fake_region_embed = self.f_fc1(fake_region.view(-1, self.rnn_size))
         h_out_embed = self.h_fc1(h_out)
         # img_all = torch.cat([fake_region.view(-1,1,self.conv_size), conv_feat], 1)
-        img_all_embed = torch.cat([fake_region_embed.view(-1,1,self.att_hid_size), conv_feat_embed], 1)
+        img_all_embed = torch.cat([fake_region_embed.view(-1,1,self.att_hid_size), conv_feat_embed], 1) # B*self.seq_per_image, max_num_proposal+1, self.att_hid_size
         hA = F.tanh(img_all_embed + h_out_embed.view(-1,1,self.att_hid_size))
         # hA = F.dropout(hA, 0.3, self.training)
         hAflat = self.alpha_net(hA.view(-1, self.att_hid_size))
@@ -137,7 +137,7 @@ class TopDownCore(nn.Module):
 
     def forward(self, xt, fc_feats, conv_feats, p_conv_feats, pool_feats, p_pool_feats, att_mask, pnt_mask, state):
         
-        prev_h = state[0][-1]
+        # prev_h = state[0][-1]
         # att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
         att_lstm_input = torch.cat([fc_feats, xt], 1)
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
@@ -147,9 +147,9 @@ class TopDownCore(nn.Module):
 
         ada_gate_point = F.sigmoid(self.i2h_2(lang_lstm_input) + self.h2h_2(state[0][1]))
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
-        output = F.dropout(h_lang, self.drop_prob_lm, self.training)
-        fake_box = F.dropout(ada_gate_point*F.tanh(state[1][1]), self.drop_prob_lm, training=self.training)
-        det_prob = self.adaPnt(output, fake_box, pool_feats, p_pool_feats, pnt_mask)
+        output = F.dropout(h_lang, self.drop_prob_lm, self.training) # later encoded to P_{txt}^t
+        fake_box = F.dropout(ada_gate_point*F.tanh(state[1][1]), self.drop_prob_lm, training=self.training) # visual sentinel. B*self_seq_per_image, self.rnn_size
+        det_prob = self.adaPnt(output, fake_box, pool_feats, p_pool_feats, pnt_mask) # p_r^t
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
         return output, det_prob, state
 

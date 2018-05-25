@@ -25,7 +25,7 @@ class AttModel(CaptionModel):
         super(AttModel, self).__init__()
         self.image_crop_size = opt.image_crop_size
         self.vocab_size = opt.vocab_size
-        self.detect_size = opt.detect_size
+        self.detect_size = opt.detect_size # number of fine-grained detection classes
         self.input_encoding_size = opt.input_encoding_size
         #self.rnn_type = opt.rnn_type
         self.rnn_size = opt.rnn_size
@@ -143,26 +143,26 @@ class AttModel(CaptionModel):
             return Variable(seq), Variable(bn_seq), Variable(fg_seq)
 
     def init_hidden(self, bsz):
-        weight = next(self.parameters()).data
+        weight = next(self.parameters()).data # I'd rather determined the data type from img
         return (Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()),
                 Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()))
 
     def _forward(self, img, seq, ppls, gt_boxes, mask_boxes, num):
 
-        seq = seq.view(-1, seq.size(2), seq.size(3))
+        seq = seq.view(-1, seq.size(2), seq.size(3)) # B*self.seq_per_img, self.seq_length+1, 5
         seq_update = seq.data.clone()
 
-        batch_size = img.size(0)
-        seq_batch_size = seq.size(0)
-        rois_num = ppls.size(1)
+        batch_size = img.size(0) # B
+        seq_batch_size = seq.size(0) # B*self.seq_per_img
+        rois_num = ppls.size(1) # max_num_proposal of the batch
         # constructing the mask.
 
-        pnt_mask = mask_boxes.data.new(batch_size, rois_num+1).byte().fill_(1)
+        pnt_mask = mask_boxes.data.new(batch_size, rois_num+1).byte().fill_(1) # what's the +1 for?
         for i in range(batch_size):
             pnt_mask[i,:num.data[i,1]+1] = 0
         pnt_mask = Variable(pnt_mask)
 
-        state = self.init_hidden(seq_batch_size)
+        state = self.init_hidden(seq_batch_size) # self.num_layers, B*self.seq_per_img, self.rnn_size
         rnn_output = []
         roi_labels = [] # store which proposal match the gt box
         det_output = []
@@ -174,9 +174,10 @@ class AttModel(CaptionModel):
             conv_feats, fc_feats = self.cnn(Variable(img.data, volatile=True))
             conv_feats = Variable(conv_feats.data)
             fc_feats = Variable(fc_feats.data)
+
         # pooling the conv_feats
         rois = ppls.data.new(batch_size, rois_num, 5)
-        rois[:,:,1:] = ppls.data[:,:,:4]
+        rois[:,:,1:] = ppls.data[:,:,:4] # store the ppl coordinates. B, max_num_proposal, 5
 
         for i in range(batch_size): rois[i,:,0] = i
         pool_feats = self.roi_align(conv_feats, Variable(rois.view(-1,5)))
@@ -185,16 +186,16 @@ class AttModel(CaptionModel):
         loc_input = ppls.data.new(batch_size, rois_num, 5)
         loc_input[:,:,:4] = ppls.data[:,:,:4] / self.image_crop_size
         loc_input[:,:,4] = ppls.data[:,:,5]
-        loc_feats = self.loc_fc(Variable(loc_input))
+        loc_feats = self.loc_fc(Variable(loc_input)) # encode the locations
 
         label_input = seq.data.new(batch_size, rois_num)
         label_input[:,:] = ppls.data[:,:,4]
-        label_feat = self.det_fc(Variable(label_input))
+        label_feat = self.det_fc(Variable(label_input)) # encode the fg detection classes
 
         # pool_feats = pool_feats + label_feat
-        pool_feats = torch.cat((pool_feats, loc_feats, label_feat), 2)
+        pool_feats = torch.cat((pool_feats, loc_feats, label_feat), 2) # region feature is the concatenation of three parts (pooled region feat, location emb and detection label emb)
         # transpose the conv_feats
-        conv_feats = conv_feats.view(batch_size, self.att_feat_size, -1).transpose(1,2).contiguous()
+        conv_feats = conv_feats.view(batch_size, self.att_feat_size, -1).transpose(1,2).contiguous() # B, self.att_size*self.att_size, self.att_feat_size
 
         # replicate the feature to map the seq size.
         fc_feats = fc_feats.view(batch_size, 1, self.fc_feat_size)\
@@ -215,11 +216,12 @@ class AttModel(CaptionModel):
         pool_feats = self.pool_embed(pool_feats)
 
         # Project the attention feats first to reduce memory and computation comsumptions.
-        p_conv_feats = self.ctx2att(conv_feats)
-        p_pool_feats = self.ctx2pool(pool_feats)
+        p_conv_feats = self.ctx2att(conv_feats) # self.rnn_size (1024) -> self.att_hid_size (512)
+        p_pool_feats = self.ctx2pool(pool_feats) # same here
 
         # calculate the overlaps between the rois and gt_bbox.
         overlaps = utils.bbox_overlaps(ppls.data, gt_boxes.data)
+
         for i in range(self.seq_length):
             if self.training and i >= 1 and self.ss_prob > 0.0: # otherwiste no need to sample
                 sample_prob = fc_feats.data.new(batch_size).uniform_(0, 1)
@@ -227,6 +229,7 @@ class AttModel(CaptionModel):
                 if sample_mask.sum() == 0:
                     it = seq[:, i, 0].clone()
                 else:
+                    # scheduled sampling
                     sample_ind = sample_mask.nonzero().view(-1)
                     it = seq[:, i, 0].data.clone()
                     #prob_prev = torch.exp(outputs[-1].data.index_select(0, sample_ind)) # fetch prev distribution: shape Nx(M+1)
@@ -236,6 +239,7 @@ class AttModel(CaptionModel):
                     it = Variable(it)
             else:
                 it = seq[:, i, 0].clone()
+
             # break if all the sequences end
             if i >= 1 and seq[:, i, 0].data.sum() == 0:
                 break
@@ -257,27 +261,28 @@ class AttModel(CaptionModel):
         roi_labels = torch.cat([_.unsqueeze(1) for _ in roi_labels], 1)
 
         det_output = F.log_softmax(det_output, dim=2)
-        decoded = F.log_softmax(self.beta * self.logit(rnn_output), dim=2)
-        lambda_v = det_output[:,:,0].contiguous()
+        decoded = F.log_softmax(self.beta * self.logit(rnn_output), dim=2) # text word prob
+        lambda_v = det_output[:,:,0].contiguous() # the dummy prob for text word
         prob_det = det_output[:,:,1:].contiguous()
 
         decoded = decoded+lambda_v.view(seq_batch_size, seq_cnt, 1).expand_as(decoded)
         decoded  = decoded.view((seq_cnt)*seq_batch_size, -1)
 
         roi_labels = Variable(roi_labels)
-        prob_det = prob_det * roi_labels
+        prob_det = prob_det * roi_labels # roi_labels store the binary mask that represents if the proposal match the gt proposal (location iou>0.5, class match, confident score>0.5)
 
         roi_cnt = roi_labels.sum(2)
+        # print(torch.max(roi_cnt)) # multiple-matches happen frequently
         roi_cnt[roi_cnt==0]=1
         vis_prob = prob_det.sum(2) / roi_cnt
-        vis_prob = vis_prob.view(-1,1)
-        
+        vis_prob = vis_prob.view(-1,1) # prob over the detection classes
+
         seq_update = Variable(seq_update)
         lm_loss = self.critLM(decoded, vis_prob, seq_update[:,1:seq_cnt+1, 0].clone())
         # do the cascade object recognition.
         vis_idx = seq_update[:,1:seq_cnt+1,0].data - self.vocab_size
         vis_idx[vis_idx<0] = 0
-        vis_idx = Variable(vis_idx.view(-1))
+        vis_idx = Variable(vis_idx.view(-1)) # zero out text words
 
         # roi_labels = Variable(roi_labels)
         bn_logprob, fg_logprob = self.ccr_core(vis_idx, pool_feats, rnn_output, roi_labels, seq_batch_size, seq_cnt)
