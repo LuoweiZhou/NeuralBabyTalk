@@ -532,6 +532,7 @@ def bbox_target(rois, mask, overlaps, seq, seq_update, vocab_size):
     no_proposal_idx = (labels.sum(1) > 0) != (seq.data[:,2] > 0)
 
     # seq_new = seq.clone()
+    # convert vis word to text word if there is not matched proposal
     if no_proposal_idx.sum() > 0:
         seq_update[:,0][no_proposal_idx] = seq_update[:,3][no_proposal_idx]
         seq_update[:,1][no_proposal_idx] = 0
